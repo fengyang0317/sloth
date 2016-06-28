@@ -573,9 +573,10 @@ class CarItem(BaseItem):
         painter.drawLine(omx, omy, onx, ony)
         painter.drawLine(mx, my, omx, omy)
         painter.drawLine(nx, ny, onx, ony)
-        r = 2
+        r = 4
         painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
         di = self._points[1] - self._points[0]
+        r = 2
         painter.drawEllipse(QRectF(di.x() -r, di.y() -r, 2 * r, 2 * r))
 
     def dataChange(self):
@@ -612,6 +613,13 @@ class CarItem(BaseItem):
 
     def keyPressEvent(self, event):
         BaseItem.keyPressEvent(self, event)
+        if event.key() == Qt.Key_R:
+            self.setPos(self._points[1])
+            t = self._points[0]
+            self._points[0] = self._points[1]
+            self._points[1] = t
+            self.updateModel()
+            event.accept()
         step = 1
         if event.modifiers() & Qt.ShiftModifier:
             step = 5

@@ -295,7 +295,10 @@ class LabelTool(QObject):
     def gotoNext(self, step=1):
         if self._model is not None:
             if self._current_image is not None:
-                next_image = self._current_image.getNextSibling(step)
+                next_image = self._current_image.getNextSibling(1)
+
+                self._container.save(self._model.root().getAnnotations(),
+                                     self._container.filename())
             else:
                 next_image = next(self._model.iterator(ImageModelItem))
                 if next_image is not None:
@@ -306,7 +309,7 @@ class LabelTool(QObject):
 
     def gotoPrevious(self, step=1):
         if self._model is not None and self._current_image is not None:
-            prev_image = self._current_image.getPreviousSibling(step)
+            prev_image = self._current_image.getPreviousSibling(1)
 
             if prev_image is not None:
                 self.setCurrentImage(prev_image)
