@@ -132,6 +132,86 @@ class RectItemInserter(ItemInserter):
         ItemInserter.abort(self)
 
 
+class CarItemInserter(ItemInserter):
+    def __init__(self, labeltool, scene, default_properties=None,
+                 prefix="", commit=True):
+        ItemInserter.__init__(self, labeltool, scene, default_properties,
+                              prefix, commit)
+        self._init_pos = None
+
+    def mousePressEvent(self, event, image_item):
+        pos = event.scenePos()
+        self._init_pos = pos
+        self._item = list()
+        self._item.append(QGraphicsLineItem(pos.x(), pos.y(), pos.x(), pos.y()))
+        self._item.append(QGraphicsLineItem(pos.x(), pos.y(), pos.x(), pos.y()))
+        self._item.append(QGraphicsLineItem(pos.x(), pos.y(), pos.x(), pos.y()))
+        self._item.append(QGraphicsLineItem(pos.x(), pos.y(), pos.x(), pos.y()))
+        self._item.append(QGraphicsEllipseItem(QRectF(pos.x() - 2,
+                                          pos.y() - 2, 5, 5)))
+        for it in self._item:
+            it.setPen(self.pen())
+            self._scene.addItem(it)
+        event.accept()
+
+    def mouseMoveEvent(self, event, image_item):
+        if self._item is not None:
+            assert self._init_pos is not None
+            pos = event.scenePos()
+            #length = math.sqrt(() ** 2 + () ** 2)
+            dx = (pos.x() - self._init_pos.x()) / 2
+            dy = (pos.y() - self._init_pos.y()) / 2
+            rx = self._init_pos.x() - dy
+            ry = self._init_pos.y() + dx
+            mx = (self._init_pos.x() + rx) / 2
+            my = (self._init_pos.y() + ry) / 2
+            nx = self._init_pos.x() * 2 - mx
+            ny = self._init_pos.y() * 2 - my
+            omx = pos.x() + mx - self._init_pos.x()
+            omy = pos.y() + my - self._init_pos.y()
+            onx = pos.x() + nx - self._init_pos.x()
+            ony = pos.y() + ny - self._init_pos.y()
+            self._item[0].setLine(mx, my, nx, ny)
+            self._item[1].setLine(omx, omy, onx, ony)
+            self._item[2].setLine(mx, my, omx, omy)
+            self._item[3].setLine(nx, ny, onx, ony)
+
+        event.accept()
+
+    def mouseReleaseEvent(self, event, image_item):
+        if self._item is not None:
+            if self._item[0].line().length() > 1 and \
+               self._item[2].line().length() > 1:
+                l1 = self._item[0].line()
+                l2 = self._item[1].line()
+                self._ann.update({self._prefix + 'hx': (l1.x1() + l1.x2()) / 2,
+                                  self._prefix + 'hy': (l1.y1() + l1.y2()) / 2,
+                                  self._prefix + 'ex': (l2.x1() + l2.x2()) / 2,
+                                  self._prefix + 'ey': (l2.y1() + l2.y2()) / 2,
+                                  self._prefix + 'width': l1.length()})
+                self._ann.update(self._default_properties)
+                if self._commit:
+                    image_item.addAnnotation(self._ann)
+            for it in self._item:
+                self._scene.removeItem(it)
+            self.annotationFinished.emit()
+            self._init_pos = None
+            self._item = None
+
+        event.accept()
+
+    def allowOutOfSceneEvents(self):
+        return True
+
+    def abort(self):
+        if self._item is not None:
+            for it in self._item:
+                self._scene.removeItem(it)
+            self._item = None
+            self._init_pos = None
+        ItemInserter.abort(self)
+
+
 class FixedRatioRectItemInserter(RectItemInserter):
     def __init__(self, labeltool, scene, default_properties=None,
                  prefix="", commit=True):

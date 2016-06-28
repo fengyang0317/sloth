@@ -1,5 +1,6 @@
 import logging
 from PyQt4.Qt import *
+import math
 
 
 LOG = logging.getLogger(__name__)
@@ -476,6 +477,151 @@ class RectItem(BaseItem):
             else:
                 rect = self._rect.adjusted(*(ds + ds))
             self._updateRect(rect)
+            self.updateModel()
+            event.accept()
+
+
+class CarItem(BaseItem):
+    def __init__(self, model_item=None, prefix="", parent=None):
+        BaseItem.__init__(self, model_item, prefix, parent)
+
+        self._points = None
+        self._resize = False
+        self._resize_start = None
+        self._ori_width = None
+
+        self._updatePoints(self._dataToPoints(self._model_item))
+        LOG.debug("Constructed rect %s for model item %s" %
+                  (self._points, model_item))
+
+    def __call__(self, model_item=None, parent=None):
+        item = CarItem(model_item, parent)
+        item.setPen(self.pen())
+        item.setBrush(self.brush())
+        return item
+
+    def _dataToPoints(self, model_item):
+        if model_item is None:
+            return None
+
+        try:
+            return [QPointF(float(model_item[self.prefix() + 'hx']), float(model_item[self.prefix() + 'hy'])),
+                    QPointF(float(model_item[self.prefix() + 'ex']), float(model_item[self.prefix() + 'ey'])),
+                    float(model_item[self.prefix() + 'width'])]
+        except KeyError as e:
+            LOG.debug("RectItem: Could not find expected key in item: "
+                      + str(e) + ". Check your config!")
+            self.setValid(False)
+            return None
+
+    def _updatePoints(self, points):
+
+        self.prepareGeometryChange()
+        self._points = points
+        self.setPos(points[0])
+
+    def updateModel(self):
+        self._points[1] += self.scenePos() - self._points[0]
+        self._points[0] = self.scenePos()
+        self._model_item.update({
+            self.prefix() + 'hx':      float(self._points[0].x()),
+            self.prefix() + 'hy':      float(self._points[0].y()),
+            self.prefix() + 'ex':      float(self._points[1].x()),
+            self.prefix() + 'ey':      float(self._points[1].y()),
+            self.prefix() + 'width':   float(self._points[2]),
+        })
+
+    def boundingRect(self):
+        di = self._points[1] - self._points[0]
+        di *= self._points[2] / math.sqrt(di.x()**2 + di.y()**2) / 2
+        mx = -di.y()
+        my = di.x()
+        #mx = self._points[2].x() - self._points[0].x()
+        #my = self._points[2].y() - self._points[0].y()
+        nx = - mx
+        ny = - my
+        omx = mx - self._points[0].x() + self._points[1].x()
+        omy = my - self._points[0].y() + self._points[1].y()
+        onx = nx - self._points[0].x() + self._points[1].x()
+        ony = ny - self._points[0].y() + self._points[1].y()
+        xmin = min(mx, nx, omx, onx)
+        ymin = min(my, ny, omy, ony)
+        xmax = max(mx, nx, omx, onx)
+        ymax = max(my, ny, omy, ony)
+        return QRectF(xmin, ymin, xmax - xmin, ymax - ymin)
+
+    def paint(self, painter, option, widget=None):
+        BaseItem.paint(self, painter, option, widget)
+
+        pen = self.pen()
+        if self.isSelected():
+            pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        di = self._points[1] - self._points[0]
+        di *= self._points[2] / math.sqrt(di.x()**2 + di.y()**2) / 2
+        mx = -di.y()
+        my = di.x()
+        #mx = self._points[2].x() - self._points[0].x()
+        #my = self._points[2].y() - self._points[0].y()
+        nx = - mx
+        ny = - my
+        omx = mx - self._points[0].x() + self._points[1].x()
+        omy = my - self._points[0].y() + self._points[1].y()
+        onx = nx - self._points[0].x() + self._points[1].x()
+        ony = ny - self._points[0].y() + self._points[1].y()
+        painter.drawLine(mx, my, nx, ny)
+        painter.drawLine(omx, omy, onx, ony)
+        painter.drawLine(mx, my, omx, omy)
+        painter.drawLine(nx, ny, onx, ony)
+        r = 2
+        painter.drawEllipse(QRectF(-r, -r, 2 * r, 2 * r))
+        di = self._points[1] - self._points[0]
+        painter.drawEllipse(QRectF(di.x() -r, di.y() -r, 2 * r, 2 * r))
+
+    def dataChange(self):
+        points = self._dataToPoints(self._model_item)
+        self._updatePoints(points)
+
+    def mousePressEvent(self, event):
+        #if event.modifiers() & Qt.ControlModifier != 0:
+        if event.button() & Qt.RightButton != 0:
+            self._resize = True
+            self._resize_start = event.scenePos()
+            self._ori_width = self._points[2]
+            event.accept()
+        else:
+            BaseItem.mousePressEvent(self, event)
+
+    def mouseMoveEvent(self, event):
+        if self._resize:
+            diff = event.scenePos().y() - self._resize_start.y()
+            if diff < self._ori_width:
+                self._points[2] = self._ori_width - diff
+                self.updateModel()
+
+            event.accept()
+        else:
+            BaseItem.mouseMoveEvent(self, event)
+
+    def mouseReleaseEvent(self, event):
+        if self._resize:
+            self._resize = False
+            event.accept()
+        else:
+            BaseItem.mouseReleaseEvent(self, event)
+
+    def keyPressEvent(self, event):
+        BaseItem.keyPressEvent(self, event)
+        step = 1
+        if event.modifiers() & Qt.ShiftModifier:
+            step = 5
+        ds = {Qt.Key_Left:  (-step, 0),
+              Qt.Key_Right: (step, 0),
+              Qt.Key_Up:    (0, -step),
+              Qt.Key_Down:  (0, step),
+             }.get(event.key(), None)
+        if ds is not None:
+            self._points[1] += QPointF(ds[0], ds[1])
             self.updateModel()
             event.accept()
 
