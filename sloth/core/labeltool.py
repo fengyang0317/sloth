@@ -306,6 +306,7 @@ class LabelTool(QObject):
 
             if next_image is not None:
                 self.setCurrentImage(next_image)
+                print next_image['filename']
 
     def gotoPrevious(self, step=1):
         if self._model is not None and self._current_image is not None:

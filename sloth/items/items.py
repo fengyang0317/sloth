@@ -488,7 +488,7 @@ class CarItem(BaseItem):
         self._points = None
         self._resize = False
         self._resize_start = None
-        self._ori_width = None
+        self._ori_p1 = None
 
         self._updatePoints(self._dataToPoints(self._model_item))
         LOG.debug("Constructed rect %s for model item %s" %
@@ -588,17 +588,15 @@ class CarItem(BaseItem):
         if event.button() & Qt.RightButton != 0:
             self._resize = True
             self._resize_start = event.scenePos()
-            self._ori_width = self._points[2]
+            self._ori_p1 = self._points[1]
             event.accept()
         else:
             BaseItem.mousePressEvent(self, event)
 
     def mouseMoveEvent(self, event):
         if self._resize:
-            diff = event.scenePos().y() - self._resize_start.y()
-            if diff < self._ori_width:
-                self._points[2] = self._ori_width - diff
-                self.updateModel()
+            self._points[1] = self._ori_p1 + event.scenePos() - self._resize_start
+            self.updateModel()
 
             event.accept()
         else:
@@ -623,13 +621,11 @@ class CarItem(BaseItem):
         step = 1
         if event.modifiers() & Qt.ShiftModifier:
             step = 5
-        ds = {Qt.Key_Left:  (-step, 0),
-              Qt.Key_Right: (step, 0),
-              Qt.Key_Up:    (0, -step),
-              Qt.Key_Down:  (0, step),
+        ds = {Qt.Key_W:  step,
+              Qt.Key_S: -step,
              }.get(event.key(), None)
         if ds is not None:
-            self._points[1] += QPointF(ds[0], ds[1])
+            self._points[2] += ds
             self.updateModel()
             event.accept()
 
